@@ -38,6 +38,7 @@ function buildChrome() {
   // Source files
   cpDir(path.join(SRC, 'background'), path.join(dest, 'background'));
   cpDir(path.join(SRC, 'content'),    path.join(dest, 'content'));
+  cpDir(path.join(SRC, 'shared'),     path.join(dest, 'shared'));
   cpDir(path.join(SRC, 'offscreen'),  path.join(dest, 'offscreen'));
   cpDir(path.join(SRC, 'popup'),      path.join(dest, 'popup'));
   cpDir(path.join(SRC, 'lib'),        path.join(dest, 'lib'));
@@ -71,6 +72,7 @@ function buildFirefox() {
   // Source files (no offscreen for Firefox)
   cpDir(path.join(SRC, 'background'), path.join(dest, 'background'));
   cpDir(path.join(SRC, 'content'),    path.join(dest, 'content'));
+  cpDir(path.join(SRC, 'shared'),     path.join(dest, 'shared'));
   cpDir(path.join(SRC, 'popup'),      path.join(dest, 'popup'));
   cpDir(path.join(SRC, 'lib'),        path.join(dest, 'lib'));
 
