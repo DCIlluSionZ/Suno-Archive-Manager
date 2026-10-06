@@ -15,18 +15,12 @@
     "default_path": "popup/popup.html"
   },
   "permissions": [
-    "storage",
-    "downloads",
-    "scripting",
-    "offscreen",
     "tabs",
     "sidePanel"
   ],
   "host_permissions": [
     "https://*.suno.com/*",
-    "https://*.suno.ai/*",
-    "https://cdn2.suno.ai/*",
-    "https://cdn1.suno.ai/*"
+    "https://*.suno.ai/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js"

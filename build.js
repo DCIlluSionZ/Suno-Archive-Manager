@@ -39,9 +39,7 @@ function buildChrome() {
   cpDir(path.join(SRC, 'background'), path.join(dest, 'background'));
   cpDir(path.join(SRC, 'content'),    path.join(dest, 'content'));
   cpDir(path.join(SRC, 'shared'),     path.join(dest, 'shared'));
-  cpDir(path.join(SRC, 'offscreen'),  path.join(dest, 'offscreen'));
   cpDir(path.join(SRC, 'popup'),      path.join(dest, 'popup'));
-  cpDir(path.join(SRC, 'lib'),        path.join(dest, 'lib'));
 
   // Icons
   cpDir(path.join(ROOT, 'icons'), path.join(dest, 'icons'));
@@ -74,7 +72,6 @@ function buildFirefox() {
   cpDir(path.join(SRC, 'content'),    path.join(dest, 'content'));
   cpDir(path.join(SRC, 'shared'),     path.join(dest, 'shared'));
   cpDir(path.join(SRC, 'popup'),      path.join(dest, 'popup'));
-  cpDir(path.join(SRC, 'lib'),        path.join(dest, 'lib'));
 
   // Icons
   cpDir(path.join(ROOT, 'icons'), path.join(dest, 'icons'));
