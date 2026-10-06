@@ -3,7 +3,7 @@
 Date: 2026-10-06
 Repository: `DCIlluSionZ/Suno-Archive-Manager`
 Branch: `design/ben-g-metadata-bridge`
-Status: Design for review
+Status: Approved; Phase 1 acceptance evidence recorded 2026-10-07
 
 ## 1. Purpose
 
@@ -101,18 +101,21 @@ Each song record should support these canonical fields when available:
 - `title`
 - `display_name`
 - `created_at`
-- model/version identifier(s)
+- `model_name`
+- `major_model_version`
 - `duration_seconds`
-- style/tags
-- generation description/prompt fields when present
-- lyrics when present
-- instrumental flag when present
+- `tags`
+- generation-description `prompt` when present
+- `lyrics` when present
+- `is_instrumental` when present
 - `suno_url` or derivable song URL
 - `image_url`
 - relationship identifiers such as parent/source/continuation/remix/cover IDs when available
 - capture timestamps: `first_seen_at`, `last_seen_at`
 
 Exact mappings must be based on current observed Suno payloads rather than guesses from older field names. If one historical field has changed meaning, the normalizer must prefer the current verified meaning.
+
+Acceptance observation on 2026-10-07 confirmed that current V6 records can expose `model_name` (for example `chirp-hawk`) separately from `major_model_version` (`v6`). Current custom lyrics were observed in `metadata.prompt`, while generation-description text belongs to `gpt_description_prompt`/description-style fields when present. The canonical schema keeps those meanings separate.
 
 Audio URLs may be observed as part of raw Suno payloads, but they are not required for the canonical Ben.G schema and must not be used to fetch audio.
 

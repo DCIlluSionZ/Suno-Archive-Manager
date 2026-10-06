@@ -1,135 +1,84 @@
-// SAM — MAIN world content script (Chrome)
-// Patches window.fetch to capture songs, drives auto-scroll.
-
+// Ben.G Suno Metadata Bridge — passive MAIN-world observer for Chromium
 (function () {
   'use strict';
 
-  if (window.__archiveMasterMain) return;
-  window.__archiveMasterMain = true;
+  if (window.__benGSunoMetadataObserver) return;
+  window.__benGSunoMetadataObserver = true;
 
-  // Capture true original fetch ONCE — never re-capture after patching
-  // or re-attaching, otherwise wrapping window.fetch again causes infinite recursion.
   const trueFetch = window.fetch;
+  const lastFingerprintById = new Map();
+  let lastSongArrival = Date.now();
+  let scrollInterval = null;
 
-  let capturedIds = new Set();
+  function toExtension(message) {
+    window.postMessage({ __am: true, ...message }, '*');
+  }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
-  function findSongs(obj) {
-    let found = [];
-    if (!obj || typeof obj !== 'object') return found;
-    if (obj.id && (obj.audio_url || obj.metadata?.audio_url)) return [obj];
-    if (Array.isArray(obj)) {
-      obj.forEach(i => { found = found.concat(findSongs(i)); });
-    } else {
-      Object.keys(obj).forEach(k => {
-        if (k !== 'metadata' && typeof obj[k] === 'object') {
-          found = found.concat(findSongs(obj[k]));
+  function fingerprint(song) {
+    const copy = { ...song, first_seen_at: null, last_seen_at: null };
+    return JSON.stringify(copy);
+  }
+
+  async function observedFetch(...args) {
+    const response = await trueFetch.apply(this, args);
+
+    try {
+      response.clone().json().then((data) => {
+        const rawSongs = BenGSunoMetadata.findSongCandidates(data);
+        if (!rawSongs.length) return;
+
+        const seenAt = new Date().toISOString();
+        const changed = [];
+        for (const raw of rawSongs) {
+          const song = BenGSunoMetadata.normalizeSong(raw, seenAt);
+          if (!song) continue;
+          const nextFingerprint = fingerprint(song);
+          if (lastFingerprintById.get(song.id) === nextFingerprint) continue;
+          lastFingerprintById.set(song.id, nextFingerprint);
+          changed.push(song);
         }
-      });
+
+        if (changed.length) {
+          lastSongArrival = Date.now();
+          toExtension({ type: 'SONGS', songs: changed });
+        }
+      }).catch(() => {});
+    } catch (_) {
+      // Metadata inspection is best-effort only; never affect the real response.
     }
-    return found;
+
+    return response;
   }
 
-  function normalizeSong(raw) {
-    return {
-      id:           raw.id,
-      title:        raw.title || 'Untitled',
-      audio_url:    raw.audio_url  || raw.metadata?.audio_url  || '',
-      image_url:    raw.image_url  || raw.image_large_url || raw.metadata?.image_url || '',
-      tags:         raw.metadata?.tags   || raw.tags   || '',
-      prompt:       raw.metadata?.prompt || raw.prompt || '',
-      created_at:   raw.created_at || '',
-      display_name: raw.display_name || raw.user_display_name ||
-                    raw.profiles?.display_name || raw.handle || '',
-    };
-  }
-
-  function toExt(msg) {
-    window.postMessage({ __am: true, ...msg }, '*');
-  }
-
-  // Updated whenever new songs arrive — adaptive scroll watches this
-  let lastSongArrival = 0;
-
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-  // ── Fetch interceptor ────────────────────────────────────────────────────
-  function attachInterceptor() {
-    window.fetch = async function (...args) {
-      const [resource] = args;
-      const url = resource instanceof Request ? resource.url : String(resource);
-
-      if (/(statsig|segment|stratovibe|sentry|rgstr|pixel)/i.test(url)) {
-        return new Response('{}', { status: 200 });
-      }
-
-      try {
-        const response = await trueFetch.apply(this, args);
-        response.clone().json().then(data => {
-          const raw = findSongs(data);
-          if (!raw.length) return;
-          const newSongs = [];
-          for (const r of raw) {
-            if (r.id && !capturedIds.has(r.id)) {
-              capturedIds.add(r.id);
-              newSongs.push(normalizeSong(r));
-            }
-          }
-          if (newSongs.length) {
-            lastSongArrival = Date.now();
-            toExt({ type: 'SONGS', songs: newSongs });
-          }
-        }).catch(() => {});
-        return response;
-      } catch (e) {
-        return Promise.reject(e);
-      }
-    };
-  }
-
-  // SPA re-attach — always delegates to trueFetch so no recursion risk
-  const origPush = history.pushState;
-  history.pushState = function (...args) { origPush.apply(this, args); attachInterceptor(); };
-  window.addEventListener('popstate', () => attachInterceptor());
-
-  // ── Scroll ────────────────────────────────────────────────────────────────
-  // Scroll as fast as possible — the fetch interceptor captures inbound data
-  // passively at whatever rate Suno delivers it. We just need to keep
-  // triggering the infinite-scroll loader. Done when no new songs have
-  // arrived for IDLE_DONE_MS while sitting at the bottom.
+  window.fetch = observedFetch;
 
   const SCROLL_INTERVAL_MS = 400;
-  const IDLE_DONE_MS       = 5000; // no new songs + at bottom = complete
+  const IDLE_DONE_MS = 5000;
 
-  let scrollInterval = null;
+  function stopScroll() {
+    if (scrollInterval) {
+      clearInterval(scrollInterval);
+      scrollInterval = null;
+    }
+  }
 
   function startScroll() {
     if (scrollInterval) return;
     lastSongArrival = Date.now();
-
     scrollInterval = setInterval(() => {
       window.scrollTo(0, document.body.scrollHeight);
-
       const atBottom = window.scrollY + window.innerHeight >= document.body.scrollHeight - 200;
       const idleSince = Date.now() - lastSongArrival;
-
       if (atBottom && idleSince >= IDLE_DONE_MS) {
         stopScroll();
-        toExt({ type: 'SCROLL_COMPLETE' });
+        toExtension({ type: 'SCROLL_COMPLETE' });
       }
     }, SCROLL_INTERVAL_MS);
   }
 
-  function stopScroll() {
-    if (scrollInterval) { clearInterval(scrollInterval); scrollInterval = null; }
-  }
-
-  // ── Commands from bridge ─────────────────────────────────────────────────
-  window.addEventListener('message', (e) => {
-    if (e.source !== window || !e.data?.__am) return;
-    if (e.data.type === 'START_SCROLL') startScroll();
-    else if (e.data.type === 'STOP_SCROLL') stopScroll();
+  window.addEventListener('message', (event) => {
+    if (event.source !== window || !event.data?.__am) return;
+    if (event.data.type === 'START_SCROLL') startScroll();
+    else if (event.data.type === 'STOP_SCROLL') stopScroll();
   });
-
-  attachInterceptor();
 })();

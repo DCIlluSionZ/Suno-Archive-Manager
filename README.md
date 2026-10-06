@@ -1,90 +1,157 @@
-# SAM - Suno Archive Manager — Browser Extension
+# Ben.G Suno Metadata Bridge
 
-Download your entire Suno music library as a local ZIP. No cloud accounts, no console scripts, no external servers.
+A local-first Chromium extension for passively indexing structured metadata that Suno already delivers to your browser session, then exporting that metadata as JSON.
 
-## What it does
+This repository is Ben's fork of Daniel Oxa's **Suno Archive Manager (SAM)**. Phase 1 deliberately changes the Chromium workflow from bulk media archiving to **metadata only**.
 
-1. Auto-captures your Suno library page as your scroll, intercepting API responses
-2. Indexes every song as it loads (live counter in the popup)
-3. Exports everything as a ZIP: audio files (MP3/M4A), cover art, and `metadata.json`
+## What this fork does
 
-## Install
+- Passively observes Suno JSON responses while you browse or scan supported Suno pages.
+- Normalizes song metadata into a stable local schema.
+- Stores records persistently in IndexedDB, keyed by Suno song ID.
+- Upserts repeat observations instead of duplicating songs.
+- Exports a versioned metadata-only JSON document.
+- Keeps audio downloading outside this extension and inside Suno's approved download flow.
 
-1. Download the correct .Zip
-   - Chrome: https://github.com/danieloxa/Suno-Archive-Manager/raw/refs/heads/main/dist/archive-master-chrome.zip
-   - Firefox: https://github.com/danieloxa/Suno-Archive-Manager/raw/refs/heads/main/dist/archive-master-firefox.zip
-2. Install/load into Browser (See instructions below for loading).
+It does **not** replace Suno Explorer. Suno Explorer remains the day-to-day library manager; this project is a narrow structured-data bridge for Ben.G workflows and future local tooling.
+
+## Phase 1 status
+
+Chrome/Edge is the accepted Phase 1 target.
+
+The implementation has automated coverage for metadata discovery/normalization, IndexedDB persistence, duplicate-safe upserts, passive network observation, UI/export contracts, Chromium permission safety, and a 25,001-record scale guard.
+
+A live current-Suno smoke test on 7 October 2026 verified the Chromium build against a public V6 playlist using an isolated Chrome for Testing profile. The test confirmed current V6 metadata capture, persistence across browser restart, duplicate-free rescans, manual stop/export behaviour, visible error handling, and metadata-only JSON output.
+
+## Current V6 mappings
+
+Current Suno V6 payloads observed during the acceptance test included:
+
+- `model_name` such as `chirp-hawk`
+- `major_model_version` such as `v6`
+- `metadata.duration` for duration
+- `metadata.tags` for style/tags
+- `metadata.prompt` for custom lyrics
+- `metadata.gpt_description_prompt` for a generation-description prompt when present
+- `metadata.make_instrumental` for instrumental state
+
+These mappings are handled defensively because Suno can change its payload shape. See [`docs/metadata-schema-v1.md`](docs/metadata-schema-v1.md) for the complete export contract.
 
 ## Build
 
-```bash
-npm install
-npm run build:all        # builds dist/chrome/ and dist/firefox/
-npm run build:chrome     # Chrome only
-npm run build:firefox    # Firefox only
-```
-
-### Package for distribution
+Requirements: Node.js and npm.
 
 ```bash
-npm run package:chrome   # → dist/archive-master-chrome.zip
-npm run package:firefox  # → dist/archive-master-firefox.zip
+npm ci
+npm test
+npm run build:chrome
 ```
 
-## Load in Chrome (unpacked)
+The unpacked Chromium extension is built at:
 
-1. Run `npm run build:chrome`
-2. Open Chrome → `chrome://extensions`
-3. Enable **Developer mode** (top-right toggle)
-4. Click **Load unpacked**
-5. Select the `dist/chrome/` folder
+```text
+dist/chrome/
+```
 
-> Note: This is a manually installed extension. Permanent installation will be available if demand warrants an official release via the Chrome Extension Store).
+### Load in Chrome or Edge
 
-## Load in Firefox (temporary)
+1. Run `npm run build:chrome`.
+2. Open the browser's extensions page.
+3. Enable **Developer mode**.
+4. Choose **Load unpacked**.
+5. Select `dist/chrome/`.
 
-1. Run `npm run build:firefox`
-2. Open Firefox → `about:debugging#/runtime/this-firefox`
-3. Click **Load Temporary Add-on…**
-4. Select `dist/firefox/manifest.json`
-
-> Note: Temporary add-ons are removed on browser restart. Permanent installation will be available if demand warrants an official release via Mozilla Firefox Addon's Library).
+Phase 1 acceptance is Chromium-only. The repository still contains legacy Firefox/upstream source, but Firefox parity is not part of the Phase 1 completion claim.
 
 ## Usage
 
-1. Navigate to **suno.com/library**
-2. Click the Archive Master icon in your toolbar
-3. Click **Scan Library** — the extension auto-scrolls and counts songs live
-4. When the scan completes (or click **Stop & Export**), click **Download ZIP**
-5. Wait for the ZIP to assemble and download — large libraries may take a few minutes
+1. Open a supported Suno page such as your library or a playlist.
+2. Open the extension side panel.
+3. Click **Scan Library**.
+4. The extension reloads/scrolls the Suno page so normal Suno responses can be observed.
+5. Use **Pause**, **Resume**, or **Stop Scan** as needed.
+6. Click **Export Metadata** to save `BenG_Suno_Metadata_YYYY-MM-DD.json`.
 
-## ZIP structure
+A rescan does not clear the existing index. It updates records by Suno song ID and preserves each record's original `first_seen_at` while advancing `last_seen_at` when a newer observation arrives.
 
+**Clear Local Index** is the only destructive reset action and requires an explicit confirmation.
+
+## Export format
+
+The JSON export has this top-level contract:
+
+```json
+{
+  "schema_version": 1,
+  "exported_at": "2026-10-07T00:00:00.000Z",
+  "source": "ben-g-suno-metadata-bridge",
+  "song_count": 1,
+  "songs": []
+}
 ```
-SunoArchive_YYYY-MM-DD/
-├── metadata.json          ← all song data in one file
-├── audio/
-│   └── song_title_id.mp3  (or .m4a — extension detected from URL)
-└── covers/
-    └── song_title_id.jpg
+
+Audio URLs are intentionally excluded from canonical exported song records. The Chromium extension has no `downloads` or `offscreen` permission and does not package the old JSZip/ID3/offscreen media-downloader runtime.
+
+## Storage
+
+The authoritative local index is IndexedDB:
+
+```text
+Database: ben-g-suno-metadata
+Version: 1
+Object stores:
+- songs     (keyPath: id)
+- app_meta  (keyPath: key)
 ```
 
-## Known limitations
+IndexedDB is used because a large song library containing lyrics and style metadata can exceed the normal extension key/value storage quota. The automated test suite exercises 25,001 records.
 
-- **CDN URL expiry**: Suno CDN URLs expire after some time. Export promptly after scanning; don't save the JSON and come back days later.
-- **Large libraries**: 500+ songs may take several minutes to assemble the ZIP. The progress bar shows per-file progress. This is being downloaded, and archived locally and is dependant on network performance, computer specifications and library size.
-- **SPA navigation**: If you navigate away and back during a scan, the extension re-attaches automatically, but a page hard-refresh resets the content script state (the background still holds already-captured songs).
-- **Firefox temporary installs**: Removed on browser restart — use `about:debugging` each session, or sign via AMO.
-- **M4A on older Android**: Some Suno tracks are delivered as `.m4a`. The extension always detects the extension from the URL rather than hardcoding `.mp3`.
+## Privacy and safety boundary
 
-## Architecture
+The Chromium extension:
 
-| File | Role |
-|------|------|
-| `src/content/content-script.js` | Patches `window.fetch` (Chrome MAIN world) |
-| `src/content/content-script-ff.js` | Injects page-world script via `<script>` tag (Firefox) |
-| `src/background/service-worker.js` | Chrome MV3 — stores songs in `session` storage, delegates ZIP to offscreen |
-| `src/background/background-page.js` | Firefox MV2 — persistent page, assembles ZIP directly |
-| `src/offscreen/offscreen.js` | Chrome only — fetches files and builds ZIP (needs a document context for Blob URLs) |
-| `src/popup/` | Vanilla JS popup — 4 states: offsite / ready / scanning / done |
-| `src/lib/jszip.min.js` | Bundled JSZip — no CDN calls at runtime |
+- observes metadata already delivered to the active Suno page;
+- does not block, rewrite, or synthesize Suno network responses;
+- does not store cookies, authorization headers, signed request material, or entire response payloads;
+- keeps only a bounded allow-list of useful source metadata;
+- does not fetch song audio, stems, or cover files for archiving;
+- does not automate paid Suno generation actions.
+
+## Relationship to Suno Explorer
+
+This project is not intended to recreate search, playlists, ratings, mastering, lineage UI, or other full library-management features that Suno Explorer already handles well.
+
+The intended split is:
+
+```text
+Suno / Suno Explorer
+        |
+        v
+Ben.G Suno Metadata Bridge
+        |
+        v
+versioned local metadata
+        |
+        +--> future Ben.G Music MCP
+        +--> local masters / Ableton links
+        +--> future Ben + Chris collaboration workspace
+```
+
+The future collaboration layer can hold lyric drafts, voice memos, demos, comments, current-version markers, and Suno IDs/links without using Suno itself as the collaboration backend.
+
+## Development
+
+Run the complete verification suite with:
+
+```bash
+npm test
+npm run build:chrome
+```
+
+The source of truth lives under `src/` and `manifests/`; `dist/chrome/` is generated by the build.
+
+## Upstream attribution
+
+This fork is based on **Suno Archive Manager** by Daniel Oxa (`danieloxa/Suno-Archive-Manager`). The original project provided the browser-extension architecture that this fork adapts for metadata-only use. Preserve upstream attribution and applicable license terms when redistributing or extending the project.
+
+The package declares the ISC license in `package.json`.

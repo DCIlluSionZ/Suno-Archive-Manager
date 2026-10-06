@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const JSZip = require('jszip');
 
 const root = path.join(__dirname, '..');
 
@@ -33,4 +34,20 @@ test('Chromium manifest describes the metadata-only workflow', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dist/chrome/manifest.json'), 'utf8'));
   assert.match(manifest.description || '', /metadata/i);
   assert.doesNotMatch(manifest.description || '', /download your entire|local zip/i);
+});
+
+test('tracked Chromium ZIP contains only the metadata bridge runtime', async () => {
+  const zipPath = path.join(root, 'dist/archive-master-chrome.zip');
+  const zip = await JSZip.loadAsync(fs.readFileSync(zipPath));
+  const entries = Object.keys(zip.files);
+  assert.equal(entries.some((entry) => /\/offscreen\//.test(entry)), false);
+  assert.equal(entries.some((entry) => /\/lib\/(jszip\.min|id3writer)\.js$/.test(entry)), false);
+  assert.equal(entries.some((entry) => /shared\/song-metadata\.js$/.test(entry)), true);
+  assert.equal(entries.some((entry) => /background\/song-store\.js$/.test(entry)), true);
+});
+
+test('package metadata describes the metadata bridge rather than the old downloader', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.match(pkg.description || '', /metadata/i);
+  assert.doesNotMatch(pkg.description || '', /download your Suno music library/i);
 });

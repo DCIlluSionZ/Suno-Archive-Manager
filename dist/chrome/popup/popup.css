@@ -359,3 +359,7 @@ body {
   padding-top: 14px;
   border-top: 1px solid var(--border-subtle);
 }
+
+/* Ben.G metadata summary */
+.resume-area .date-range { margin: 4px 0; }
+.status-text { overflow-wrap: anywhere; }
