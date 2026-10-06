@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "SAM - Suno Archive Manager",
+  "name": "Ben.G Suno Metadata Bridge",
   "version": "1.0.0",
   "description": "Passively index Suno song metadata locally and export a metadata-only JSON file.",
   "icons": {
@@ -9,7 +9,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "SAM - Suno Archive Manager"
+    "default_title": "Ben.G Suno Metadata Bridge"
   },
   "side_panel": {
     "default_path": "popup/popup.html"
