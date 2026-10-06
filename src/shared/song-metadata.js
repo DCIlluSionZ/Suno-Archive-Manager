@@ -28,20 +28,23 @@
     if (!nonEmpty(value.id)) return false;
     const metadata = value.metadata && typeof value.metadata === 'object' ? value.metadata : {};
     return [
-      value.title,
       value.created_at,
       value.audio_url,
       value.image_url,
       value.image_large_url,
       value.model_name,
+      value.major_model_version,
       value.duration,
       value.duration_seconds,
       metadata.tags,
       metadata.prompt,
+      metadata.gpt_description_prompt,
       metadata.gpt_description,
       metadata.lyrics,
       metadata.model_name,
+      metadata.major_model_version,
       metadata.duration,
+      metadata.make_instrumental,
     ].some(nonEmpty);
   }
 
@@ -119,8 +122,12 @@
         raw.model_name,
         raw.model,
         metadata.model_name,
-        metadata.model,
+        metadata.model
+      ),
+      major_model_version: firstDefined(
+        raw.major_model_version,
         metadata.major_model_version,
+        raw.version,
         metadata.version
       ),
       duration_seconds: toNumberOrNull(firstDefined(
@@ -131,14 +138,21 @@
       )),
       tags: firstDefined(raw.tags, metadata.tags, raw.style, metadata.style),
       prompt: firstDefined(
-        raw.prompt,
-        metadata.prompt,
+        raw.gpt_description_prompt,
+        metadata.gpt_description_prompt,
         raw.gpt_description,
         metadata.gpt_description,
         raw.description,
         metadata.description
       ),
-      lyrics: firstDefined(raw.lyrics, metadata.lyrics, raw.text, metadata.text),
+      lyrics: firstDefined(
+        raw.lyrics,
+        metadata.lyrics,
+        raw.text,
+        metadata.text,
+        raw.prompt,
+        metadata.prompt
+      ),
       is_instrumental: toBooleanOrNull(firstDefined(
         raw.is_instrumental,
         metadata.is_instrumental,

@@ -27,3 +27,10 @@ test('Chromium build does not package ZIP, ID3, or offscreen media code', () => 
   assert.equal(fs.existsSync(path.join(root, 'dist/chrome/lib/jszip.min.js')), false);
   assert.equal(fs.existsSync(path.join(root, 'dist/chrome/lib/id3writer.js')), false);
 });
+
+test('Chromium manifest describes the metadata-only workflow', () => {
+  buildChrome();
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dist/chrome/manifest.json'), 'utf8'));
+  assert.match(manifest.description || '', /metadata/i);
+  assert.doesNotMatch(manifest.description || '', /download your entire|local zip/i);
+});

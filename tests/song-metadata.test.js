@@ -33,6 +33,7 @@ test('discovery ignores unrelated ids and malformed values', () => {
   assert.deepEqual(findSongCandidates('nope'), []);
   assert.deepEqual(findSongCandidates({ id: 'user-1', email: 'x@example.com' }), []);
   assert.deepEqual(findSongCandidates({ nested: [{ id: 'thing-1', status: 'ok' }] }), []);
+  assert.deepEqual(findSongCandidates({ id: '1', title: 'timbaland' }), []);
 });
 
 test('normalize maps canonical fields and bounded source metadata', () => {
@@ -43,7 +44,8 @@ test('normalize maps canonical fields and bounded source metadata', () => {
     title: 'Hesitate',
     display_name: 'Ben.G',
     created_at: '2026-10-01T10:00:00.000Z',
-    model_name: 'chirp-v6',
+    model_name: 'chirp-hawk',
+    major_model_version: 'v6',
     duration: 214.5,
     image_large_url: 'https://img.example/cover.jpg',
     parent_clip_id: 'parent-1',
@@ -51,8 +53,8 @@ test('normalize maps canonical fields and bounded source metadata', () => {
     audio_url: 'https://cdn.example/audio.mp3',
     metadata: {
       tags: 'synthwave, art pop',
-      prompt: 'Driving 80s alternative pop',
-      lyrics: 'hello world',
+      prompt: 'hello world',
+      gpt_description_prompt: 'Driving 80s alternative pop',
       is_instrumental: false,
       major_model_version: 'v6',
       private_secret: 'do-not-copy',
@@ -63,7 +65,8 @@ test('normalize maps canonical fields and bounded source metadata', () => {
   assert.equal(out.title, 'Hesitate');
   assert.equal(out.display_name, 'Ben.G');
   assert.equal(out.created_at, '2026-10-01T10:00:00.000Z');
-  assert.equal(out.model_name, 'chirp-v6');
+  assert.equal(out.model_name, 'chirp-hawk');
+  assert.equal(out.major_model_version, 'v6');
   assert.equal(out.duration_seconds, 214.5);
   assert.equal(out.tags, 'synthwave, art pop');
   assert.equal(out.prompt, 'Driving 80s alternative pop');
@@ -86,6 +89,7 @@ test('normalize tolerates missing optional fields', () => {
   const out = normalizeSong({ id: 'minimal', title: 'Minimal Song' }, '2026-10-07T00:00:00.000Z');
   assert.equal(out.id, 'minimal');
   assert.equal(out.model_name, null);
+  assert.equal(out.major_model_version, null);
   assert.equal(out.duration_seconds, null);
   assert.equal(out.lyrics, null);
   assert.equal(out.is_instrumental, null);
