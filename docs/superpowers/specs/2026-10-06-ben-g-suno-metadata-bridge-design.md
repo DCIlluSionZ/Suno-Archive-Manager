@@ -20,10 +20,11 @@ Phase 1 is successful when the Chrome/Edge extension can:
 1. Passively observe Ben's own Suno pages and collect song metadata without blocking, replacing, or modifying Suno network requests.
 2. Persist captured metadata across extension/service-worker/browser restarts.
 3. Deduplicate records reliably by Suno song ID.
-4. Export a stable, documented metadata-only JSON file.
-5. Preserve enough raw/unknown fields, where safely practical, that future schema expansion does not require rediscovering everything from scratch.
-6. Build cleanly for Chromium browsers and be testable without downloading audio.
-7. Contain no bulk-audio download path in the supported Ben.G workflow.
+4. Handle a very large library (tens of thousands of songs) without depending on the 10 MB `chrome.storage.local` quota.
+5. Export a stable, documented metadata-only JSON file.
+6. Preserve enough useful non-sensitive source metadata that future schema expansion does not require rediscovering everything from scratch.
+7. Build cleanly for Chromium browsers and be testable without downloading audio.
+8. Contain no bulk-audio download path in the supported Ben.G workflow.
 
 ## 3. Non-goals
 
@@ -67,7 +68,7 @@ The supported Ben.G workflow is metadata-only.
 
 The extension may observe metadata that Suno already delivers to Ben's authenticated browser session. It must not add a replacement mechanism for obtaining audio files outside Suno's provided download channels.
 
-The existing offscreen ZIP/audio machinery will therefore be removed from the supported Chromium build or made unreachable and then removed as part of the same implementation phase if doing so is simpler and safer.
+The existing offscreen ZIP/audio machinery will therefore be removed from the supported Chromium build.
 
 The manifest should lose permissions that are only required for media downloading, including `downloads` and `offscreen`, once no supported code path needs them.
 
@@ -88,7 +89,7 @@ Requirements:
 - never synthesize fake Suno responses,
 - tolerate non-JSON responses and schema drift without breaking Suno.
 
-The observer should send normalized metadata to the extension through the existing bridge.
+The observer should send candidate song metadata to the extension through the existing bridge. Validation, normalization and persistence should live outside the page world where practical.
 
 ### 6.2 Canonical metadata schema
 
@@ -100,38 +101,44 @@ Each song record should support these canonical fields when available:
 - `title`
 - `display_name`
 - `created_at`
-- `model_name` / model identifier
+- model/version identifier(s)
 - `duration_seconds`
-- `tags`
-- `prompt`
-- `lyrics`
-- `is_instrumental`
+- style/tags
+- generation description/prompt fields when present
+- lyrics when present
+- instrumental flag when present
 - `suno_url` or derivable song URL
 - `image_url`
 - relationship identifiers such as parent/source/continuation/remix/cover IDs when available
 - capture timestamps: `first_seen_at`, `last_seen_at`
 
+Exact mappings must be based on current observed Suno payloads rather than guesses from older field names. If one historical field has changed meaning, the normalizer must prefer the current verified meaning.
+
 Audio URLs may be observed as part of raw Suno payloads, but they are not required for the canonical Ben.G schema and must not be used to fetch audio.
 
 Because Suno payloads can evolve, normalization should be defensive. Missing fields remain absent or `null` rather than causing capture failure.
 
-Where practical, preserve a bounded `source_metadata` object containing useful non-sensitive fields not yet promoted into the canonical schema. Do not blindly persist entire response payloads, credentials, cookies, authorization headers, or unrelated user/account data.
+Where practical, preserve a bounded `source_metadata` object containing useful non-sensitive fields not yet promoted into the canonical schema. Do not blindly persist entire response payloads, credentials, cookies, authorization headers, signed request material, or unrelated user/account data.
 
 ### 6.3 Persistent local store
 
-Replace `chrome.storage.session` as the authoritative store.
+Use **IndexedDB** as the authoritative song store from Phase 1.
 
-Preferred implementation for Phase 1: `chrome.storage.local`, because the first target is a modest, inspectable metadata index and the repository is currently a lightweight vanilla-JS extension.
+Reason: Ben's library can contain tens of thousands of songs, with lyrics/prompts/style metadata potentially making the index far larger than Chromium's default 10 MB `chrome.storage.local` quota. Building on `chrome.storage.local` would create an avoidable migration and quota risk.
 
-Storage model:
+Use `chrome.storage.local` only for small extension settings/state if needed, such as schema version, last scan time, UI preferences, or migration markers.
 
-- dictionary/map keyed by Suno song ID,
-- upsert rather than append-only duplication,
+IndexedDB storage model:
+
+- one song object store keyed by Suno song ID,
+- deterministic upsert rather than append-only duplication,
 - retain `first_seen_at`, update `last_seen_at`,
 - update canonical fields when a newer observation provides better/non-empty values,
-- maintain schema/storage version metadata.
+- add indexes only when required by the extension itself (for example `created_at`),
+- maintain database/schema versioning with explicit migrations,
+- avoid one giant in-memory array for the full library during normal capture.
 
-If real-world library size demonstrates that `chrome.storage.local` is unsuitable, migration to IndexedDB becomes a separate, evidence-driven change rather than Phase 1 complexity.
+The first implementation should not request `unlimitedStorage` unless measured real-world usage or browser quota behaviour shows it is necessary. IndexedDB gives us the correct data model without prematurely adding a broader permission.
 
 ### 6.4 Export layer
 
@@ -151,9 +158,11 @@ Export format:
 
 The export is JSON only in Phase 1.
 
+For a very large library, export should iterate/read from IndexedDB in a controlled way instead of first duplicating the entire persistent dataset into extension storage. If one final JSON Blob requires the records in memory, implementation must measure memory behaviour with a large synthetic dataset before acceptance.
+
 Future JSONL/CSV exports can be added later if an actual consumer needs them.
 
-The export should use a normal browser-created JSON Blob and user-initiated save/download. It must not fetch song media.
+The export should use a user-initiated metadata-only file save/download. It must not fetch song media.
 
 ### 6.5 Side-panel UI
 
@@ -238,10 +247,10 @@ MAIN-world passive fetch observer
 isolated extension bridge
         |
         v
-service worker validates + normalizes/upserts
+service worker validates + normalizes
         |
         v
-chrome.storage.local
+IndexedDB song store
         |
         +--> side-panel counts/status
         |
@@ -258,6 +267,7 @@ metadata export/local mirror --> Ben.G Music service/MCP --> Tahlia / Antigravit
 - A malformed/non-JSON Suno response must be ignored, not surfaced as a fatal error.
 - Schema drift must not break normal Suno browsing.
 - Storage failures should show a clear extension error and stop claiming data is safely indexed.
+- IndexedDB migration failure must fail safely without deleting the prior database.
 - Export failure must leave the local index intact.
 - Scan completion must use conservative signals; it should be possible to stop manually and export partial metadata.
 - The extension must never deliberately break Suno network calls to make scanning easier.
@@ -272,7 +282,9 @@ Implementation must include automated tests for logic that can be isolated from 
 4. deduplication/upsert rules,
 5. merge behaviour for richer/newer observations,
 6. export schema/version/count,
-7. proof that observer logic does not intentionally return fake responses for analytics URLs.
+7. proof that observer logic does not intentionally return fake responses for analytics URLs,
+8. database migration/version behaviour,
+9. large-library behaviour using a synthetic dataset on the order of 25,000+ records.
 
 Browser verification should cover:
 
@@ -282,24 +294,26 @@ Browser verification should cover:
 - a scan indexes metadata from Ben's authenticated library,
 - browser/service-worker restart preserves the index,
 - metadata export contains expected records and no downloaded audio,
-- removed permissions are actually absent from the Chromium manifest.
+- removed permissions are actually absent from the Chromium manifest,
+- indexed song count remains correct after repeated scans/upserts.
 
 No acceptance claim should depend only on mocked fixtures; at least one current-Suno browser smoke test is required before calling Phase 1 complete.
 
 ## 13. Minimal implementation sequence
 
-1. Clone Ben's fork locally under `/Users/dci/DCI-Code/Suno-Archive-Manager` after this design is approved.
+1. Clone Ben's fork locally under `/Users/dci/DCI-Code/Suno-Archive-Manager` after this written design is approved.
 2. Create an implementation branch/worktree according to the development workflow.
-3. Add tests around normalization, merge/upsert, and export schema before production-code changes.
-4. Refactor capture so it is passive and does not block analytics/network requests.
-5. Expand the canonical metadata normalizer.
-6. Replace session storage with versioned persistent local storage and deterministic upserts.
-7. Replace ZIP/media export with metadata-only JSON export.
-8. Remove Chromium media-download/offscreen code and permissions no longer needed.
-9. Simplify the side-panel copy/actions to the metadata workflow.
-10. Build and run automated verification.
-11. Load the unpacked Chromium build and smoke-test against current Suno.
-12. Update README with the new purpose, limitations, attribution, and metadata schema.
+3. Capture representative current-Suno metadata fixtures from Ben's own authenticated session without persisting credentials or unrelated account data.
+4. Add tests around discovery, normalization, merge/upsert, IndexedDB wrapper behaviour, and export schema before production-code changes.
+5. Refactor capture so it is passive and does not block analytics/network requests.
+6. Implement the canonical metadata normalizer against verified current payloads.
+7. Replace session storage with versioned IndexedDB persistence and deterministic upserts.
+8. Replace ZIP/media export with metadata-only JSON export.
+9. Remove Chromium media-download/offscreen code and permissions no longer needed.
+10. Simplify the side-panel copy/actions to the metadata workflow.
+11. Build and run automated verification including a 25,000+ synthetic-record storage/export test.
+12. Load the unpacked Chromium build and smoke-test against current Suno.
+13. Update README with the new purpose, limitations, attribution, and metadata schema.
 
 ## 14. Upstream attribution and repository identity
 
@@ -313,8 +327,9 @@ Phase 1 is complete only when:
 
 - Chromium build passes,
 - automated tests pass,
+- large-library synthetic verification passes,
 - passive capture is verified,
-- persistent local index is verified across restart,
+- persistent IndexedDB index is verified across restart,
 - JSON metadata export is verified,
 - no supported path fetches song audio,
 - no Chromium download/offscreen permissions remain unless a documented metadata-only need is discovered,
