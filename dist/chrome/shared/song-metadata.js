@@ -27,24 +27,23 @@
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     if (!nonEmpty(value.id)) return false;
     const metadata = value.metadata && typeof value.metadata === 'object' ? value.metadata : {};
+    const hasMediaUrls = Array.isArray(value.media_urls)
+      ? value.media_urls.length > 0
+      : !!(value.media_urls && typeof value.media_urls === 'object' && Object.keys(value.media_urls).length);
+    if (hasMediaUrls) return true;
     return [
-      value.created_at,
       value.audio_url,
+      value.video_url,
       value.image_url,
       value.image_large_url,
       value.model_name,
       value.major_model_version,
       value.duration,
       value.duration_seconds,
-      metadata.tags,
-      metadata.prompt,
-      metadata.gpt_description_prompt,
-      metadata.gpt_description,
-      metadata.lyrics,
       metadata.model_name,
       metadata.major_model_version,
       metadata.duration,
-      metadata.make_instrumental,
+      metadata.duration_seconds,
     ].some(nonEmpty);
   }
 

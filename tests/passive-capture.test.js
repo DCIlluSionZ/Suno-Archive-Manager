@@ -25,3 +25,20 @@ test('Chrome build copies shared metadata module', () => {
   const build = fs.readFileSync(path.join(root, 'build.js'), 'utf8');
   assert.match(build, /path\.join\(SRC, 'shared'\)/);
 });
+
+
+test('Chromium observer injects only on library/profile and explicit playlist pages', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifests/manifest.chrome.json'), 'utf8'));
+  for (const entry of manifest.content_scripts) {
+    assert.equal(entry.matches.includes('https://*.suno.com/*'), false);
+    assert.equal(entry.matches.includes('https://*.suno.ai/*'), false);
+    assert.deepEqual(entry.matches, [
+      'https://*.suno.com/me*',
+      'https://*.suno.com/library*',
+      'https://*.suno.com/playlist/*',
+      'https://*.suno.ai/me*',
+      'https://*.suno.ai/library*',
+      'https://*.suno.ai/playlist/*',
+    ]);
+  }
+});

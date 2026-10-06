@@ -15,16 +15,25 @@ function requireMetadata() {
   return metadata;
 }
 
-test('discovery finds nested song metadata without requiring audio_url', () => {
+test('discovery finds nested song metadata without requiring audio_url when clip evidence exists', () => {
   const { findSongCandidates } = requireMetadata();
   const payload = {
     page: {
       clips: [
-        { id: 'song-1', title: 'River Road', metadata: { tags: 'country, soul', prompt: 'Warm dusk song' } },
+        { id: 'song-1', title: 'River Road', image_url: 'https://img.example/song.jpg', metadata: { tags: 'country, soul', prompt: 'Warm dusk song', duration: 210 } },
       ],
     },
   };
   assert.deepEqual(findSongCandidates(payload).map((s) => s.id), ['song-1']);
+});
+
+test('discovery ignores saved prompt and lyrics-project lookalikes without clip evidence', () => {
+  const { findSongCandidates } = requireMetadata();
+  const payload = {
+    prompts: [{ id: 'prompt-1', title: 'Swampy Blues', created_at: '2026-10-07T00:00:00Z', metadata: { prompt: 'raspy blues' } }],
+    lyrics_projects: [{ id: 'lyrics-1', title: 'Verse idea', created_at: '2026-10-07T00:00:00Z', lyrics: 'some words' }],
+  };
+  assert.deepEqual(findSongCandidates(payload), []);
 });
 
 test('discovery ignores unrelated ids and malformed values', () => {

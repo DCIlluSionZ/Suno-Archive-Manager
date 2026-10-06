@@ -110,3 +110,8 @@ Acceptance testing on 7 October 2026 used an isolated Chrome for Testing profile
 - JSON export contained no `audio_url` field.
 
 Suno is an external service and may change payload fields. Schema v1 therefore normalizes defensively and should be updated only from observed evidence plus regression tests.
+## Capture scope and song qualification
+
+Phase 1 Chromium capture is intentionally limited to Suno library/profile routes (`/me`, `/library`) and explicit playlist routes (`/playlist/...`). The extension does not inject its observer on `/create`.
+
+A JSON object is not treated as a song merely because it has an ID, title, timestamp, prompt, or lyric text. It must also carry clip evidence such as media/image data, a model/version identifier, or duration. This prevents Suno saved prompts and standalone lyrics-project records from contaminating the song index.

@@ -28,8 +28,12 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.suno.com/*",
-        "https://*.suno.ai/*"
+        "https://*.suno.com/me*",
+        "https://*.suno.com/library*",
+        "https://*.suno.com/playlist/*",
+        "https://*.suno.ai/me*",
+        "https://*.suno.ai/library*",
+        "https://*.suno.ai/playlist/*"
       ],
       "js": [
         "shared/song-metadata.js",
@@ -40,8 +44,12 @@
     },
     {
       "matches": [
-        "https://*.suno.com/*",
-        "https://*.suno.ai/*"
+        "https://*.suno.com/me*",
+        "https://*.suno.com/library*",
+        "https://*.suno.com/playlist/*",
+        "https://*.suno.ai/me*",
+        "https://*.suno.ai/library*",
+        "https://*.suno.ai/playlist/*"
       ],
       "js": [
         "content/content-bridge.js"

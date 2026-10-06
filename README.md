@@ -6,7 +6,7 @@ This repository is Ben's fork of Daniel Oxa's **Suno Archive Manager (SAM)**. Ph
 
 ## What this fork does
 
-- Passively observes Suno JSON responses while you browse or scan supported Suno pages.
+- Passively observes Suno JSON responses only on supported library/profile and explicit playlist pages. Suno Create is intentionally untouched.
 - Normalizes song metadata into a stable local schema.
 - Stores records persistently in IndexedDB, keyed by Suno song ID.
 - Upserts repeat observations instead of duplicating songs.
@@ -37,6 +37,8 @@ Current Suno V6 payloads observed during the acceptance test included:
 
 These mappings are handled defensively because Suno can change its payload shape. See [`docs/metadata-schema-v1.md`](docs/metadata-schema-v1.md) for the complete export contract.
 
+Song detection also requires clip evidence such as media/image/model/version/duration. Saved style prompts and standalone lyrics-project objects are ignored even when they contain IDs, titles, timestamps, or lyric-like text.
+
 ## Build
 
 Requirements: Node.js and npm.
@@ -65,7 +67,7 @@ Phase 1 acceptance is Chromium-only. The repository still contains legacy Firefo
 
 ## Usage
 
-1. Open a supported Suno page such as your library or a playlist.
+1. Open a supported Suno page such as `/me`, `/library`, or an explicit `/playlist/...` page. The extension does not inject on `/create`.
 2. Open the extension side panel.
 3. Click **Scan Library**.
 4. The extension reloads/scrolls the Suno page so normal Suno responses can be observed.
