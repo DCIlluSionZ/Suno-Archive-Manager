@@ -47,9 +47,22 @@
     ].some(nonEmpty);
   }
 
-  function findSongCandidates(value) {
+  function findSongCandidates(value, options = {}) {
     const found = [];
     const seenObjects = new WeakSet();
+    const allowedHandles = new Set(
+      (options.allowedHandles || [])
+        .map((handle) => String(handle || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    function handleAllowed(node) {
+      if (!allowedHandles.size) return true;
+      const metadata = node && node.metadata && typeof node.metadata === 'object' ? node.metadata : {};
+      const handle = firstDefined(node && node.handle, metadata.handle);
+      if (!nonEmpty(handle)) return true;
+      return allowedHandles.has(String(handle).trim().toLowerCase());
+    }
 
     function visit(node) {
       if (!node || typeof node !== 'object') return;
@@ -57,7 +70,7 @@
       seenObjects.add(node);
 
       if (looksLikeSong(node)) {
-        found.push(node);
+        if (handleAllowed(node)) found.push(node);
         return;
       }
 

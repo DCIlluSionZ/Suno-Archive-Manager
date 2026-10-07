@@ -118,6 +118,7 @@ The Chromium extension:
 - keeps only a bounded allow-list of useful source metadata;
 - does not fetch song audio, stems, or cover files for archiving;
 - does not automate paid Suno generation actions.
+- filters explicit creator handles to Ben's known Suno identities (`realdci` and `dciawake`) so recommendation/feed clips from other creators are not indexed; legacy clips with no handle remain eligible.
 
 ## Relationship to Suno Explorer
 

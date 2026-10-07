@@ -42,3 +42,10 @@ test('Chromium observer injects only on library/profile and explicit playlist pa
     ]);
   }
 });
+
+test('MAIN-world observer limits captured clips to Ben.G creator handles', () => {
+  const source = fs.readFileSync(path.join(root, 'src/content/content-script-main.js'), 'utf8');
+  assert.match(source, /realdci/i);
+  assert.match(source, /dciawake/i);
+  assert.match(source, /allowedHandles/);
+});

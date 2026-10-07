@@ -36,6 +36,20 @@ test('discovery ignores saved prompt and lyrics-project lookalikes without clip 
   assert.deepEqual(findSongCandidates(payload), []);
 });
 
+test('discovery applies optional creator-handle ownership filtering while allowing legacy handle-less clips', () => {
+  const { findSongCandidates } = requireMetadata();
+  const payload = {
+    clips: [
+      { id: 'mine-new', title: 'Mine', handle: 'dciawake', model_name: 'chirp-hawk' },
+      { id: 'mine-old', title: 'Mine Old', metadata: { handle: 'realdci', duration: 200 } },
+      { id: 'legacy-no-handle', title: 'Legacy', duration: 190 },
+      { id: 'someone-else', title: 'Other', handle: 'silverfoxjams', model_name: 'chirp-hawk' },
+    ],
+  };
+  const ids = findSongCandidates(payload, { allowedHandles: ['realdci', 'dciawake'] }).map((s) => s.id);
+  assert.deepEqual(ids, ['mine-new', 'mine-old', 'legacy-no-handle']);
+});
+
 test('discovery ignores unrelated ids and malformed values', () => {
   const { findSongCandidates } = requireMetadata();
   assert.deepEqual(findSongCandidates(null), []);

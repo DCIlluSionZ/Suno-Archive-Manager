@@ -6,6 +6,7 @@
   window.__benGSunoMetadataObserver = true;
 
   const trueFetch = window.fetch;
+  const BEN_G_ALLOWED_HANDLES = ['realdci', 'dciawake'];
   const lastFingerprintById = new Map();
   let lastSongArrival = Date.now();
   let scrollInterval = null;
@@ -24,7 +25,9 @@
 
     try {
       response.clone().json().then((data) => {
-        const rawSongs = BenGSunoMetadata.findSongCandidates(data);
+        const rawSongs = BenGSunoMetadata.findSongCandidates(data, {
+          allowedHandles: BEN_G_ALLOWED_HANDLES,
+        });
         if (!rawSongs.length) return;
 
         const seenAt = new Date().toISOString();
